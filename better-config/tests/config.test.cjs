@@ -263,6 +263,28 @@ test("a key setting is checked, lowercased, and names the action it binds", asyn
   assert.equal(fieldsOf({ properties: { settings: { properties: { key: { type: "string", format: "key" } } } } }, {})[0].type, "text", "no action, no key");
 });
 
+test("a JSON setting is checked as JSON, and its box starts from the default", async () => {
+  const { fieldsOf, parseInput, problemWith, boxValue } = await load();
+  const json = '{\n  "claude": { "model": "opus" }\n}';
+  const jsonSchema = { properties: { settings: { properties: {
+    models: { type: "string", format: "json", default: json },
+    prompt: { type: "string", default: "" },
+  } } } };
+  const [field, text] = fieldsOf(jsonSchema, {});
+  assert.equal(field.type, "json");
+  assert.equal(text.type, "text");
+  assert.equal(problemWith(field, ""), null, "empty is allowed: the mod decides what it means");
+  assert.equal(problemWith(field, '{"a": [1, 2]}'), null);
+  assert.match(problemWith(field, '{"a": 1,}'), /valid JSON/);
+  assert.match(problemWith(field, 5), /JSON text/);
+  assert.deepEqual(parseInput(field, '\n{\n  "a": true\n}\n'), { value: '{\n  "a": true\n}' });
+  assert.match(parseInput(field, "{oops").error, /valid JSON/);
+  assert.equal(boxValue(field, undefined), json, "an unset JSON box shows the default");
+  assert.equal(boxValue(field, ""), "");
+  assert.equal(boxValue(text, undefined), "", "other boxes show the default as a placeholder instead");
+  assert.equal(fieldsOf({ properties: { settings: { properties: { n: { type: "integer", format: "json" } } } } }, {})[0].type, "number", "only a string can be JSON text");
+});
+
 test("rebinding moves the action, takes a used key, and gives it back when moved off", async () => {
   const { rebind } = await load();
   const keys = { global: { "cmd-p": "mod.open:picker", "cmd-alt-p": "mod.open:x", "cmd-t": "tab.new" }, terminal: { "ctrl-1": "terminal" } };

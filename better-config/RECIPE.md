@@ -6,7 +6,7 @@ A dialog that shows and changes every installed mod's settings, for a person who
 
 A dialog overlay, 860 by 620, the same look as Herdr's own Settings: a 190px list on the left titled Mod settings, an Installed mods row and a divider at the top, then one plain-text row per mod with a red dot when it needs attention, and Herdr settings at the bottom. On the right, a scrolling page for the chosen mod: its title and version, Reset all when anything differs from the default, and where it's saved.
 
-Below, the mod's settings in rows, grouped under a heading by the first part of their key, keys with one part first. A row has the title, its description and the key in the code font on the left, a dot after the title when it differs from the default, then Reset, then the control: a switch for on/off; segments for up to four choices, else a dropdown with ↑, ↓, Enter and Esc; − value + for a number; a text box for times, sizes, text and comma-separated lists, which saves on Enter or when it loses focus. A value that doesn't fit is explained in red under its row.
+Below, the mod's settings in rows, grouped under a heading by the first part of their key, keys with one part first. A row has the title, its description and the key in the code font on the left, a dot after the title when it differs from the default, then Reset, then the control: a switch for on/off; segments for up to four choices, else a dropdown with ↑, ↓, Enter and Esc; − value + for a number; a text box for times, sizes, text and comma-separated lists, which saves on Enter or when it loses focus. A `format: "json"` string setting has its control under the row instead, at full width: an `Editor` (`language: "json"`, no line numbers, soft wrap) 4 to 12 lines tall as its text grows, which saves when it loses focus, since Enter there starts a new line, and starts from the default when nothing is set. A value that doesn't fit is explained in red under its row.
 
 When an update, or anything else, has put defaults back over the person's values, a box at the top says which (naming the versions when the version changed) and lists each setting as a checkbox row, ticked to start: the person's value, an arrow, the current one, with "(default)" when it's unset, and choice labels rather than ids. One button restores the ticked ones and keeps the rest, named for what it will do: Restore mine, Keep the new values, or Restore 1, keep 1. The copy then forgets the ones kept.
 
@@ -38,6 +38,6 @@ Merge `keys.json` into the person's only when they agree: Herdr stops updating t
 
 - `herdr-app check` passes and `mod.open better-config` shows every mod that has settings.
 - Changing a setting writes only that key to the mod's `mod.json`, and the mod reloads with it.
-- A value that doesn't fit is explained and not written.
+- A value that doesn't fit is explained and not written, including JSON that doesn't parse.
 - Installed mods lists every mod folder under the right tab, the search narrows it, and Settings opens that mod's page.
 - Copying a mod's shipped `mod.json` over the installed one brings up the box listing them, and Restore mine puts the values back. With one unticked, only the ticked one comes back, and the copy forgets the other.

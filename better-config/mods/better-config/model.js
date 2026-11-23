@@ -3,13 +3,14 @@
 //
 // A mod describes its settings in mods/<name>/mod.schema.json, a JSON Schema of its whole
 // mod.json. Under properties.settings, each setting has the standard title, description,
-// type, default, enum, minimum and maximum, plus format "duration", "size" or "key", and
-// x-step, x-unit and x-labels ({ "id": "Label" } for an enum). A "key" setting names, in
-// x-action, the keys.json action it binds ("mod.open:better-search"). mod.json's own settings block holds
+// type, default, enum, minimum and maximum, plus format "duration", "size", "key" or "json",
+// and x-step, x-unit and x-labels ({ "id": "Label" } for an enum). A "key" setting names, in
+// x-action, the keys.json action it binds ("mod.open:better-search"). A "json" setting is a
+// string holding JSON, edited in a multi-line box. mod.json's own settings block holds
 // only what the person changed. A key there the schema doesn't describe still shows.
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-export const TYPES = ["boolean", "number", "choice", "duration", "size", "key", "text", "list"];
+export const TYPES = ["boolean", "number", "choice", "duration", "size", "key", "json", "text", "list"];
 const DURATION = /^\s*\d+(?:\.\d+)?\s*(ms|s|m|h)\s*$/;
 const SIZE = /^\s*\d+(?:\.\d+)?\s*(B|KB|MB)\s*$/i;
 // "cmd-p", "cmd-alt-shift-]", "ctrl--": keys.json's spelling, without spaces.
@@ -81,6 +82,7 @@ function typeOf(spec) {
   if (Array.isArray(spec.enum)) return "choice";
   if (spec.format === "duration" || spec.format === "size") return spec.format;
   if (spec.format === "key" && typeof spec["x-action"] === "string") return "key";
+  if (spec.format === "json" && types.includes("string")) return "json";
   if (types.includes("boolean")) return "boolean";
   if (types.includes("integer") || types.includes("number")) return "number";
   if (types.includes("array")) return "list";
@@ -170,6 +172,16 @@ export function problemWith(field, value) {
     return Array.isArray(value) && value.every((v) => typeof v === "string")
       ? null
       : "Should be a list of words.";
+  if (type === "json") {
+    if (typeof value !== "string") return "Should be JSON text.";
+    if (!value.trim()) return null;
+    try {
+      JSON.parse(value);
+      return null;
+    } catch (e) {
+      return `Isn't valid JSON: ${e.message}`;
+    }
+  }
   return typeof value === "string" ? null : "Should be text.";
 }
 
@@ -189,6 +201,12 @@ export function parseInput(field, text) {
 export function showValue(value) {
   if (value === undefined || value === null) return "";
   return Array.isArray(value) ? value.join(", ") : String(value);
+}
+
+// What a setting's text box holds. A JSON box has no placeholder to show the default in,
+// so an unset JSON setting starts from its default, ready to edit.
+export function boxValue(field, value) {
+  return showValue(field.type === "json" && value === undefined ? field.default : value);
 }
 
 // Set by the person: present and not the default. Without a default, anything present counts.

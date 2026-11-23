@@ -5,7 +5,7 @@
 // kept in ~/.config/herdr-mods/better-config/, outside every mod, so values an
 // update wiped can be put back.
 import { View, div, svg } from "gpui-kit";
-import { v_flex, h_flex, Scrollbar, InputState, Input, Select, Popup, Checkbox } from "gpui-base";
+import { v_flex, h_flex, Scrollbar, InputState, Input, EditorState, Editor, Select, Popup, Checkbox } from "gpui-base";
 import { appHome, home, exec, readTextFile, writeTextFile, theme, props, closeOverlay, run, window, layout } from "herdr";
 import {
   fieldsOf,
@@ -13,6 +13,7 @@ import {
   problemWith,
   parseInput,
   showValue,
+  boxValue,
   isChanged,
   changedValues,
   lostValues,
@@ -33,6 +34,11 @@ const POLL_MS = 3000;
 const INSTALLED = "*installed";
 const USE = { layout: "In this layout", key: "Opens by key" };
 const INSTALLED_TABS = { yours: "Yours", herdr: "Herdr's" };
+
+// A JSON setting's editor: this many lines at least and at most, each this tall (px).
+const JSON_MIN_LINES = 4;
+const JSON_MAX_LINES = 12;
+const JSON_LINE = 19;
 
 export default class BetterConfig extends View {
   init(_props, cx) {
@@ -447,16 +453,31 @@ export default class BetterConfig extends View {
     const id = `${name}:${field.key}`;
     if (this.inputs[id]) return;
     const value = getPath(this.mods.find((m) => m.name === name)?.manifest?.settings, field.key);
-    const state = InputState.new({ placeholder: field.default === undefined ? "" : showValue(field.default) });
-    state.set_value(showValue(value));
-    const box = (this.inputs[id] = { state, focused: false, shown: showValue(value) });
+    // A JSON setting gets a multi-line editor with highlighting. Enter there is a new line,
+    // so it saves only when it loses focus.
+    const json = field.type === "json";
+    const t = theme();
+    const state = json
+      ? EditorState.new({
+          language: "json",
+          value: boxValue(field, value),
+          line_numbers: false,
+          folding: false,
+          soft_wrap: true,
+          syntax: { string: t.ansi2, number: t.ansi1, boolean: t.ansi5, constant: t.ansi5, punctuation: t.dim },
+        })
+      : InputState.new({ placeholder: field.default === undefined ? "" : showValue(field.default) });
+    if (!json) state.set_value(boxValue(field, value));
+    const box = (this.inputs[id] = { state, json, focused: false, shown: boxValue(field, value) });
+    // The editor grows with its lines.
+    if (json) state.on("change", (_e, cx) => cx.notify());
     // Saves on Enter or when the box loses focus.
     const commit = (cx) => {
       const now = this.mods.find((m) => m.name === name);
       const f = now?.manifest && now.fields.find((x) => x.key === field.key);
       if (!f) return;
       const typed = state.value();
-      if (typed === showValue(getPath(now.manifest.settings, f.key))) return;
+      if (typed === boxValue(f, getPath(now.manifest.settings, f.key))) return;
       const parsed = parseInput(f, typed);
       if (parsed.error) this.notes[id] = parsed.error;
       else {
@@ -481,10 +502,22 @@ export default class BetterConfig extends View {
     const box = this.inputs[id];
     if (!box) return div().text_size(13).text_color(t.dim).child(showValue(value));
     // Follow the file while the person isn't typing in it.
-    if (!box.focused && box.shown !== showValue(value)) {
-      box.state.set_value(showValue(value));
-      box.shown = showValue(value);
+    if (!box.focused && box.shown !== boxValue(field, value)) {
+      box.state.set_value(boxValue(field, value));
+      box.shown = boxValue(field, value);
       delete this.notes[id];
+    }
+    if (box.json) {
+      const lines = Math.min(JSON_MAX_LINES, Math.max(JSON_MIN_LINES, box.state.value().split("\n").length));
+      return div()
+        .w_full()
+        .h(lines * JSON_LINE + 14)
+        .p(6)
+        .rounded(7)
+        .border_1()
+        .border_color(this.notes[id] ? t.ansi1 : box.focused ? t.accent : t.border)
+        .bg(t.background)
+        .child(Editor.new(box.state).font_family("JetBrains Mono").text_size(12.5).size_full());
     }
     return div()
       .w(field.type === "text" || field.type === "list" ? 240 : 120)
@@ -521,18 +554,17 @@ export default class BetterConfig extends View {
   }
 
   // One setting: what it is on the left, the control on the right, any problem under it.
+  // A JSON setting's editor goes under it instead, the row's full width.
   row(t, mod, field) {
     const value = getPath(mod.manifest.settings, field.key);
     const problem = this.notes[`${mod.name}:${field.key}`] ?? problemWith(field, value);
     const changed = isChanged(field, value);
     const about = field.description;
-    return h_flex()
+    const json = field.type === "json";
+    const line = h_flex()
       .w_full()
       .gap(16)
-      .py(12)
       .items_center()
-      .border_b(1)
-      .border_color(t.border)
       .child(
         v_flex()
           .flex_1()
@@ -568,7 +600,15 @@ export default class BetterConfig extends View {
             .child("Reset"),
         ),
       )
-      .child(div().flex_none().child(this.control(t, mod, field, value)));
+      .when(!json, (el) => el.child(div().flex_none().child(this.control(t, mod, field, value))));
+    return v_flex()
+      .w_full()
+      .gap(10)
+      .py(12)
+      .border_b(1)
+      .border_color(t.border)
+      .child(line)
+      .when(json, (el) => el.child(this.control(t, mod, field, value)));
   }
 
   // When an update put the shipped values back over the person's own.
