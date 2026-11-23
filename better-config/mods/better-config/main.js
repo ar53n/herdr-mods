@@ -462,7 +462,8 @@ export default class BetterConfig extends View {
           line_numbers: false,
           folding: false,
           soft_wrap: true,
-          syntax: { string: t.ansi2, number: t.ansi1, boolean: t.ansi5, constant: t.ansi5, punctuation: t.dim },
+          // The colours of syntaxColors in Better Files and Better Changes; true and false are constants there.
+          syntax: { string: t.ansi2, number: t.ansi1, constant: t.ansi6, boolean: t.ansi6 },
         })
       : InputState.new({ placeholder: field.default === undefined ? "" : showValue(field.default) });
     if (!json) state.set_value(boxValue(field, value));
