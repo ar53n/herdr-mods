@@ -35,10 +35,8 @@ const INSTALLED = "*installed";
 const USE = { layout: "In this layout", key: "Opens by key" };
 const INSTALLED_TABS = { yours: "Yours", herdr: "Herdr's" };
 
-// A JSON setting's editor: this many lines at least and at most, each this tall (px).
-const JSON_MIN_LINES = 4;
-const JSON_MAX_LINES = 12;
-const JSON_LINE = 19;
+// A JSON setting's editor is this tall (px) whatever it holds; longer JSON scrolls inside it.
+const JSON_HEIGHT = 200;
 
 export default class BetterConfig extends View {
   init(_props, cx) {
@@ -469,8 +467,6 @@ export default class BetterConfig extends View {
       : InputState.new({ placeholder: field.default === undefined ? "" : showValue(field.default) });
     if (!json) state.set_value(boxValue(field, value));
     const box = (this.inputs[id] = { state, json, focused: false, shown: boxValue(field, value) });
-    // The editor grows with its lines.
-    if (json) state.on("change", (_e, cx) => cx.notify());
     // Saves on Enter or when the box loses focus.
     const commit = (cx) => {
       const now = this.mods.find((m) => m.name === name);
@@ -508,16 +504,15 @@ export default class BetterConfig extends View {
       delete this.notes[id];
     }
     if (box.json) {
-      const lines = Math.min(JSON_MAX_LINES, Math.max(JSON_MIN_LINES, box.state.value().split("\n").length));
       return div()
         .w_full()
-        .h(lines * JSON_LINE + 14)
+        .h(JSON_HEIGHT)
         .p(6)
         .rounded(7)
         .border_1()
         .border_color(this.notes[id] ? t.ansi1 : box.focused ? t.accent : t.border)
         .bg(t.background)
-        .child(Editor.new(box.state).font_family("JetBrains Mono").text_size(12.5).size_full());
+        .child(Editor.new(box.state).size_full());
     }
     return div()
       .w(field.type === "text" || field.type === "list" ? 240 : 120)
