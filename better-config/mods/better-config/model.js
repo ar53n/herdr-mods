@@ -209,10 +209,23 @@ export function boxValue(field, value) {
   return showValue(field.type === "json" && value === undefined ? field.default : value);
 }
 
+// Whether a value is its field's default. JSON text is the default when it means the same,
+// however it's laid out.
+export function isDefault(field, value) {
+  if (field.type === "json" && typeof value === "string" && typeof field.default === "string") {
+    try {
+      return equal(JSON.parse(value), JSON.parse(field.default));
+    } catch {
+      // Text that doesn't parse, or empty text, is compared as it is.
+    }
+  }
+  return equal(value, field.default);
+}
+
 // Set by the person: present and not the default. Without a default, anything present counts.
 export function isChanged(field, value) {
   if (value === undefined) return false;
-  return field.default === undefined ? false : !equal(value, field.default);
+  return field.default === undefined ? false : !isDefault(field, value);
 }
 
 // The person's own values: what Better Config keeps a copy of.
@@ -246,7 +259,7 @@ export function lostValues(kept, fields, manifest) {
 export function editManifest(raw, field, value) {
   const manifest = JSON.parse(raw);
   if (!isObject(manifest.settings)) manifest.settings = {};
-  if (value === undefined || equal(value, field.default)) deletePath(manifest.settings, field.key);
+  if (value === undefined || isDefault(field, value)) deletePath(manifest.settings, field.key);
   else setPath(manifest.settings, field.key, value);
   if (!Object.keys(manifest.settings).length) delete manifest.settings;
   return `${JSON.stringify(manifest, null, 2)}\n`;

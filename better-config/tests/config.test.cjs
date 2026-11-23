@@ -285,6 +285,19 @@ test("a JSON setting is checked as JSON, and its box starts from the default", a
   assert.equal(fieldsOf({ properties: { settings: { properties: { n: { type: "integer", format: "json" } } } } }, {})[0].type, "number", "only a string can be JSON text");
 });
 
+test("JSON text is the default when it means the same, however it's laid out", async () => {
+  const { fieldsOf, isDefault, isChanged, editManifest } = await load();
+  const jsonSchema = { properties: { settings: { properties: { models: { type: "string", format: "json", default: '{\n  "a": [1, 2]\n}' } } } } };
+  const [field] = fieldsOf(jsonSchema, {});
+  assert.ok(isDefault(field, '{"a":[1,2]}'));
+  assert.equal(isChanged(field, '{"a":[1,2]}'), false);
+  assert.ok(isChanged(field, '{"a":[2,1]}'));
+  assert.ok(isChanged(field, ""), "empty text is a value of its own");
+  assert.ok(isChanged(field, "{oops"));
+  const raw = JSON.stringify({ version: "1.0.0", settings: { models: '{"a": [2]}' } });
+  assert.deepEqual(JSON.parse(editManifest(raw, field, '{ "a": [1, 2] }')), { version: "1.0.0" }, "a reformatted default removes the key");
+});
+
 test("rebinding moves the action, takes a used key, and gives it back when moved off", async () => {
   const { rebind } = await load();
   const keys = { global: { "cmd-p": "mod.open:picker", "cmd-alt-p": "mod.open:x", "cmd-t": "tab.new" }, terminal: { "ctrl-1": "terminal" } };
