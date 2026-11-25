@@ -51,7 +51,8 @@ export default class BetterConfig extends View {
     this.section = null;
     this.inputs = {}; // "mod:key" → { state, focused, shown }
     this.unticked = new Set();
-    this.notes = {}; // "mod:key" → why the typed value wasn't saved
+    this.notes = {}; // "mod:key" → a note on a save, such as keys.json not changing; "mod:*" for the whole mod
+    this.refused = {}; // "mod:key" → why the typed value wasn't saved
     this.handle = cx.focus_handle();
     this.handle.focus();
     this.menuFocus = cx.focus_handle();
@@ -224,7 +225,7 @@ export default class BetterConfig extends View {
   // Back to what the mod ships with: its described default, or nothing.
   reset(mod, field, cx) {
     const id = `${mod.name}:${field.key}`;
-    delete this.notes[id];
+    delete this.refused[id];
     // Text that was refused goes too, even when the file has nothing to change.
     const box = this.inputs[id];
     if (box) {
@@ -484,9 +485,9 @@ export default class BetterConfig extends View {
       const typed = state.value();
       if (typed === boxValue(f, getPath(now.manifest.settings, f.key))) return;
       const parsed = parseInput(f, typed);
-      if (parsed.error) this.notes[id] = parsed.error;
+      if (parsed.error) this.refused[id] = parsed.error;
       else {
-        delete this.notes[id];
+        delete this.refused[id];
         this.change(name, [[f.key, parsed.value]], cx);
       }
       cx.notify();
@@ -508,7 +509,7 @@ export default class BetterConfig extends View {
     if (box.focused || box.shown === shown) return;
     box.state.set_value(shown);
     box.shown = shown;
-    delete this.notes[id];
+    delete this.refused[id];
   }
 
   // The frame of a box typed in: red when what was typed was refused, accent while typing.
@@ -516,7 +517,7 @@ export default class BetterConfig extends View {
     return div()
       .rounded(7)
       .border_1()
-      .border_color(this.notes[id] ? t.ansi1 : box.focused ? t.accent : t.border)
+      .border_color(this.refused[id] ? t.ansi1 : box.focused ? t.accent : t.border)
       .bg(t.background);
   }
 
@@ -569,8 +570,9 @@ export default class BetterConfig extends View {
   // A JSON setting's editor goes under it instead, the row's full width.
   row(t, mod, field) {
     const value = getPath(mod.manifest.settings, field.key);
-    const refused = this.notes[`${mod.name}:${field.key}`];
-    const problem = refused ?? problemWith(field, value);
+    const id = `${mod.name}:${field.key}`;
+    const refused = this.refused[id];
+    const problem = refused ?? this.notes[id] ?? problemWith(field, value);
     const changed = isChanged(field, value);
     const about = field.description;
     const json = field.type === "json";
@@ -609,7 +611,8 @@ export default class BetterConfig extends View {
             .text_color(t.dim)
             .cursor_pointer()
             .hover((s) => s.bg(t.hover).text_color(t.foreground))
-            .tooltip(`Back to ${showValue(field.default) || "the default"}`)
+            // A JSON default is many lines, too long for a tooltip.
+            .tooltip(json ? "Back to the default" : `Back to ${showValue(field.default) || "the default"}`)
             .on_click((_e, cx) => this.reset(mod, field, cx))
             .child("Reset"),
         ),

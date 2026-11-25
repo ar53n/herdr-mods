@@ -204,17 +204,27 @@ export function showValue(value) {
 }
 
 // What a setting's text box holds. A JSON box has no placeholder to show the default in,
-// so an unset JSON setting starts from its default, ready to edit.
+// so an unset JSON setting starts from its default, ready to edit. A JSON value that isn't
+// text, such as an object written into mod.json by hand, shows as JSON so it can be read.
 export function boxValue(field, value) {
-  return showValue(field.type === "json" && value === undefined ? field.default : value);
+  if (field.type !== "json") return showValue(value);
+  const shown = value === undefined ? field.default : value;
+  return shown === undefined || typeof shown === "string" ? showValue(shown) : JSON.stringify(shown, null, 2);
+}
+
+// The same value with every object's keys in order, so key order doesn't count.
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortKeys(value[key])]));
 }
 
 // Whether a value is its field's default. JSON text is the default when it means the same,
-// however it's laid out.
+// however it's laid out and whatever order its keys come in.
 export function isDefault(field, value) {
   if (field.type === "json" && typeof value === "string" && typeof field.default === "string") {
     try {
-      return equal(JSON.parse(value), JSON.parse(field.default));
+      return equal(sortKeys(JSON.parse(value)), sortKeys(JSON.parse(field.default)));
     } catch {
       // Text that doesn't parse, or empty text, is compared as it is.
     }
@@ -248,8 +258,9 @@ export function lostValues(kept, fields, manifest) {
   for (const [key, value] of Object.entries(kept.values)) {
     const now = getPath(manifest?.settings, key);
     if (equal(now, value)) continue;
-    const fallback = fields.get(key)?.default;
-    if (now === undefined || (fallback !== undefined && equal(now, fallback)) || updated) lost[key] = value;
+    const field = fields.get(key);
+    const backToDefault = field?.default !== undefined && isDefault(field, now);
+    if (now === undefined || backToDefault || updated) lost[key] = value;
   }
   return lost;
 }
